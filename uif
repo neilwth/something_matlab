@@ -1,0 +1,113 @@
+%uif  无迹信息滤波
+function UIF
+close all
+clear
+clc
+%初始化
+N=100;                          %采样点数100
+n=6;                            %状态
+T=0.8;                            %采样周期1s
+x(:,1)=[10,10,20,100,4,2]';
+y(:,1)=[sqrt(x(1,1)^2+x(2,1)^2) atan(x(2,1)/x(1,1))]';
+xg(:,1)=x(:,1);
+% alfa=exp(-4);                 %alfa设为0.5
+alfa=exp(-1);
+beta=2;                   %beta设为2
+lambda=3-n;                 %lambda设为3-n
+% lambda=0;
+P=diag([100,100,10,10,1,1]);       %误差协方差矩阵  初值
+Q=diag([0.01,0.01,0.01,0.01,0.01,0.01]);  %过程噪声协方差矩阵
+R=diag([0.01,0.0001]);                         %观测噪声协方差矩阵
+w=sqrt(Q)*randn(6,N,1);                    %过程噪声序列
+v=sqrt(R)*randn(2,N,1);                   %观测噪声序列
+Wm=[lambda/(n+lambda) 1/(2*(n+lambda))*ones(1,2*n)];    
+Wc=[lambda/(n+lambda)+1-alfa^2+beta  1/(2*(n+lambda))*ones(1,2*n)];   % 加权系数                                   
+F=[1 0 T 0 T^2/2 0;                              %状态矩阵
+     0 1 0 T 0 T^2/2;
+     0 0 1 0 T 0;     
+     0 0 0 1 0 T;
+     0 0 0 0 1 0;
+     0 0 0 0 0 1];
+ 
+ %模拟观测值
+for k=2:N
+    x(:,k)=F*x(:,k-1)+w(:,k);
+    y(:,k)=[sqrt(x(1,k)^2+x(2,k)^2) atan(x(2,k)/x(1,k))]'+v(:,k);
+end
+
+%计算
+for k=2:N
+     %构造过程sigma点
+     Jx=(chol((n+lambda)*P))';     %乔列斯基分解
+  for i=1:2*n+1
+      if i==1
+          sigma(:,i)=xg(:,k-1);
+      elseif i>1&&i<=n+1
+          sigma(:,i)=xg(:,k-1)+Jx(:,i-1);
+      else
+          sigma(:,i)=xg(:,k-1)-Jx(:,i-7);
+      end
+  end
+  
+  
+ for i=1:2*n+1
+     xk(:,i)=F*sigma(:,i);                 %sigma点做非线性变换
+ end
+ xg(:,k)=(Wm*xk')';                       %求加权均值   即先验估计
+ Pxg=zeros(6);                              
+ for i=1:2*n+1
+     Pxg=Pxg+Wc(i)*(xk(:,i)-xg(:,k))*(xk(:,i)-xg(:,k))';
+ end
+%  Pxg=Pxg+Q;                               %求加权协方差矩阵均值
+%  e=0.00001;
+%  Lg=inv(Pxg+e*eye(6));
+ Lg=inv(Pxg);
+ lg(:,k)=Lg*xg(:,k);
+ 
+%构造输出sigma点（利用上面计算的xg  和Pxg  构造）
+Jy=(chol((n+lambda)*Pxg))';    %乔列斯基分解
+for i=1:2*n+1
+      if i==1
+          ysigma(:,i)=xg(:,k);
+      elseif i>1&&i<=n+1
+          ysigma(:,i)=xg(:,k)+Jy(:,i-1);
+      else
+          ysigma(:,i)=xg(:,k)-Jy(:,i-7);
+      end
+end
+
+  for i=1:2*n+1
+     yk(:,i)=[sqrt(ysigma(1,i)^2+ysigma(2,i)^2) atan(ysigma(2,i)/ysigma(1,i))]';
+  end
+ yg(:,k)=(Wm*yk')';                     %同上  求加权均值
+ 
+ Pyg=zeros(2);
+ for i=1:2*n+1
+     Pyg=Pyg+Wc(i)*(yk(:,i)-yg(:,k))*(yk(:,i)-yg(:,k))';
+ end
+%     Pyg=Pyg+R;                             %求加权协方差矩阵均值
+ 
+ Pxyg=zeros(6,2);
+ for i=1:2*n+1
+     Pxyg=Pxyg+Wc(i)*(xk(:,i)-xg(:,k))*(yk(:,i)-yg(:,k))';
+ end                                     %同上
+  Hp=Lg*Pxyg;
+  Ik=Hp*inv(R)*Hp';
+  ik(:,k)=Hp*inv(R)*(v(:,k)+Hp'*xg(:,k));
+%   Ik=Lg*Pxyg*inv(R)*Pxyg'*Lg';
+%   ik(:,k)=Lg*Pxyg*inv(R)*(v(:,k)+Pxyg'*Lg'*xg(:,k));
+  L=Lg+Ik;
+  l(:,k)=lg(:,k)+ik(:,k);
+  P=inv(L);
+  xg(:,k)=P*l(:,k);
+  err(:,k)=xg(:,k)-x(:,k);                 %误差 
+  Ex(:,k)=[P(1,1) P(2,2),P(3,3),P(4,4),P(5,5),P(6,6)]';   %状态误差均方值
+end 
+
+figure
+hold on;box on;
+plot(x(1,:),x(2,:),'b');
+plot(xg(1,:),xg(2,:),'r');
+plot(y(1,:).*cos(y(2,:)),y(1,:).*sin(y(2,:)),':k');
+legend('实际轨迹','估计轨迹','观测轨迹');
+title('UIF位置跟踪（t=0.8）');
