@@ -1,0 +1,60 @@
+function EIF
+%初值
+T=80;
+t=0.8;
+F=[1,0,t,0,t^2/2,0;
+   0,1,0,t,0,t^2/2;
+   0,0,1,0,t,0;
+   0,0,0,1,0,t;
+   0,0,0,0,1,0;
+   0,0,0,0,0,1];
+P=eye(6);
+psai=inv(P);
+Q=diag([0.1,0.1,0.1,0.1,0.1,0.1]);
+R=diag([10,0.01]);
+Jf=F;
+x_ideal_store(:,1)=[3,3,1,1,1,1]';
+x_store(:,1)=x_ideal_store(:,1)+sqrt(Q)*randn(6,1);
+x_if_store(:,1)=x_store(:,1);
+y_store(:,1)=inv(P)*x_store(:,1);
+z_store(:,1)=[sqrt(x_store(1,1)^2+x_store(2,1)^2);atan(x_store(2,1)/x_store(1,1))]+sqrtm(R)*randn(2,1);
+
+%理论值-实际值-观测值
+for k=2:T
+    x_ideal_store(:,k)=F*x_ideal_store(:,k-1);
+    x_store(:,k)=x_ideal_store(:,k)+sqrtm(Q)*randn(6,1); %实际状态（含噪声）
+    %实际量测
+    z_store(:,k)=[sqrt(x_store(1,k)^2+x_store(2,k)^2);atan(x_store(2,k)/x_store(1,k))]+sqrtm(R)*randn(2,1);  
+end
+
+%EIF
+for k=2:T
+    psai_pre=inv(Jf*inv(psai)*Jf'+Q);
+    y_pre=psai_pre*F*x_store(:,k-1);
+    
+    Jh=[x_store(1)/sqrt(x_store(1)^2+x_store(2)^2),x_store(2)/sqrt(x_store(1)^2+x_store(2)^2),0,0,0,0;
+       -x_store(2)/(x_store(1)^2+x_store(2)^2),x_store(1)/(x_store(1)^2+x_store(2)^2),0,0,0,0];
+    Fai=Jh'*inv(R)*Jh;
+    psai=psai_pre+Fai;
+    x_pre=inv(psai)*y_pre;
+    i=Jh'*inv(R)*(z_store(:,k)-[sqrt(x_pre(1)^2+x_pre(2)^2);atan(x_pre(2)/x_pre(1))]+Jh*x_pre);
+    y_store(:,k)=y_pre+i;
+    x_if_store(:,k)=inv(psai)*y_store(:,k);
+end
+
+%观测值坐标变换
+for k=1:T
+z_show(1,k)=z_store(1,k)*cos(z_store(2,k)); %x
+z_show(2,k)=z_store(1,k)*sin(z_store(2,k)); %y
+end
+
+
+%画图，理论值-实际值-EIF值-观测值
+figure
+hold on;box on;
+plot(x_ideal_store(1,:),x_ideal_store(2,:),'k');
+plot(x_store(1,:),x_store(2,:),'r');
+plot(x_if_store(1,:),x_if_store(2,:),'b');
+plot(z_show(1,:),z_show(2,:),'c');
+legend('理论值','实际值','估计值','观测值');
+title('EIF位置跟踪(t=0.8)');
