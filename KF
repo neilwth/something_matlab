@@ -1,0 +1,61 @@
+function KF
+t=0.8;
+T=300;%迭代步数
+Fai=[1,t;0,1];
+H=[1,0];
+g=-9.8;
+B=[0.5*t^2;t];
+Q=diag([1,1]);
+R=1;
+
+x_ideal_store(:,1)=[100;500];%x初值
+x_store(:,1)=x_ideal_store(:,1)+sqrtm(Q)*randn(2,1);
+x_kf_store(:,1)=x_store(:,1);
+z_store(:,1)=H*x_store(:,1)+sqrt(R)*randn;%z初值
+
+P=eye(2);%P初值
+
+%实际值和观测值
+for k=2:T
+    x_ideal_store(:,k)=Fai*x_ideal_store(:,k-1)+B*g;%理论值
+    x_store(:,k)=Fai*x_store(:,k-1)+B*g+sqrtm(Q)*randn(2,1);%实际值
+    z_store(:,k)=H*x_store(:,k)+sqrt(R)*randn;%量测值   
+end
+
+%KF
+for k=2:T
+    %预测更新
+    x_pre=Fai*x_store(:,k-1)+B*g;
+    P_pre=Fai*P*Fai'+Q;
+    
+    %测量更新
+    Kk=P_pre*H'*inv(H*P_pre*H'+R);
+    x_kf_store(:,k)=x_pre+Kk*(z_store(:,k)-H*x_pre);
+    P=(diag([1,1])-Kk*H)*P_pre;   
+end
+
+%画图
+%理论值-实际值-估计值-量测值对比
+figure
+hold on;box on;
+plot(x_ideal_store(1,:),'g');
+plot(x_store(1,:),'r--');
+plot(x_kf_store(1,:),'b:');
+plot(z_store,'k');
+legend('理论值','实际值','估计值','量测值');
+xlabel('Time Point');
+ylabel('y');
+str=['KF位置跟踪t=',num2str(t)];
+title(str);
+
+%理论速度-实际速度-估计速度
+figure
+hold on;box on;
+plot(x_ideal_store(2,:),'g');
+plot(x_store(2,:),'r--');
+plot(x_kf_store(2,:),'b:');
+legend('理论速度','实际速度','估计速度');
+xlabel('Time Point');
+ylabel('v');
+str=['KF速度跟踪t=',num2str(t)];
+title(str);
