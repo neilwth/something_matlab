@@ -1,3 +1,3 @@
 # something_matlab
-Anyone can use it for free only IN NON-COMMERCIAL CASES.
-Not all of them are original projects.Tell me if anything infringed.
+Anyone can use it for free ONLY in NON-COMMERCIAL cases.
+Not all of the codes are original.Tell me if anything is infringed.
